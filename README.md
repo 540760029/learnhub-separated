@@ -177,6 +177,10 @@ learnhub-separated/
 │   ├── config.js            运行时配置：后端地址
 │   ├── server.js            零依赖静态服务器（开发用）
 │   └── test/                6 项静态服务测试
+│
+├── tools/
+│   ├── start-all.ps1                    一键拉起后端 + 前端 + 隧道
+│   └── cloudflared.config.example.yml   隧道分流配置模板
 └── README.md
 ```
 
@@ -279,12 +283,76 @@ systemctl enable --now learnhub-api
 用 Nginx 同时发静态文件并把 `/api` 反代到后端，这样前后端同源、连 CORS 都不用配。
 完整配置见 [frontend/README.md](frontend/README.md)。
 
-同源部署时记得把 `frontend/config.js` 的 `apiBase` 改成空字符串 `''`。
+同源部署时 `frontend/config.js` 会自动改用同源相对路径（非 localhost 环境 `apiBase` 取空串），
+不用手改配置。
+
+### Cloudflare Tunnel（不买服务器，把本机服务开放到公网）
+
+不需要公网 IP、不需要备案。用**同一个域名**把后端(8899) 与前端(5173) 暴露出去：
+
+```
+learn.你的域名.com/api/*  →  127.0.0.1:8899   （后端）
+learn.你的域名.com/*      →  127.0.0.1:5173   （前端）
+```
+
+**为什么用单域名 + 路径分流**：前后端同源，浏览器不触发跨源，连 CORS 都不用配。
+前端 `config.js` 在非 localhost 环境下会自动改用同源相对路径（见该文件注释），
+所以同一份前端代码既能本机开发、也能走隧道上线，不用改配置。
+
+`%USERPROFILE%\.cloudflared\config.yml`（模板见 `tools/cloudflared.config.example.yml`）：
+
+```yaml
+tunnel: <Tunnel ID>
+credentials-file: C:\Users\<你>\.cloudflared\<Tunnel ID>.json
+
+ingress:
+  - hostname: learn.你的域名.com
+    path: ^/api/
+    service: http://127.0.0.1:8899
+  - hostname: learn.你的域名.com
+    service: http://127.0.0.1:5173
+  - service: http_status:404
+```
+
+> ⚠️ **`path` 是 Go 正则，不是通配符**。网上很多例子写 `path: /api/*`，那是错的 ——
+> 正则里 `*` 只作用于前一个 `/`，匹配不到 `/api/courses`，结果是所有接口都被前端
+> 静态服务器接走，返回 404 或 HTML。正确写法是 `^/api/`。
+
+首次创建隧道：
+
+```bash
+cloudflared tunnel login
+cloudflared tunnel create learnhub            # 记下输出的 Tunnel ID
+cloudflared tunnel route dns learnhub learn.你的域名.com
+```
+
+之后一键拉起三个进程（后端 + 前端 + 隧道）：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools\start-all.ps1
+```
+
+**改完配置别急着上线**，先离线试跑分流规则（不需要隧道真的连上）：
+
+```bash
+cloudflared tunnel ingress validate
+cloudflared tunnel ingress rule https://learn.你的域名.com/api/courses   # 应匹配 8899
+cloudflared tunnel ingress rule https://learn.你的域名.com/app.js        # 应匹配 5173
+```
+
+> ⚠️ **Windows 上配置文件必须存成无 BOM 的 UTF-8**：cloudflared 读到 BOM 会报
+> `invalid character 'ï' looking for beginning of value` 而启动失败。
+> PowerShell 的 `Set-Content -Encoding UTF8` 会写 BOM，别用它。
+
+**暴露到公网后的安全检查**：隧道一旦接通，任何人拿到域名都能访问，务必改掉演示账号
+密码、把 `LEARNHUB_SECRET` 换成随机值。同源部署下浏览器不会跨源，CORS 其实用不到，
+`LEARNHUB_CORS_ORIGIN` 保持默认即可。
 
 ### 上线检查清单
 
 - [ ] `LEARNHUB_SECRET` 已设为随机值（且**已备份**：换了之后用户已存的 Key 解不开）
-- [ ] `LEARNHUB_CORS_ORIGIN` 已从 `*` 收窄为实际前端域名
+- [ ] `LEARNHUB_CORS_ORIGIN` 已从 `*` 收窄为实际前端域名（同源部署可不管）
+- [ ] 隧道配置里 `path` 用的是 `^/api/`，并用 `cloudflared tunnel ingress rule` 试跑确认过
 - [ ] 演示账号要么改密码，要么删掉（`admin@demo.edu` / `teacher@demo.edu` / `student@demo.edu`）
 - [ ] `LEARNHUB_SEED=0`（避免往生产库灌演示数据）
 - [ ] 平台 AI Key 由管理员登录后台「🔑 平台 AI Key」上传

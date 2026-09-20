@@ -1,0 +1,36 @@
+# LearnHub 隧道配置模板
+#
+# 放到 %USERPROFILE%\.cloudflared\config.yml 后按实际情况替换占位符。
+# 首次创建隧道：
+#   cloudflared tunnel login
+#   cloudflared tunnel create learnhub          # 记下输出的 Tunnel ID
+#   cloudflared tunnel route dns learnhub learn.你的域名.com
+#
+# ⚠️ 本文件必须存成「无 BOM 的 UTF-8」：cloudflared 读到 BOM 会报
+#    "invalid character 'ï' looking for beginning of value" 而启动失败。
+#    PowerShell 的 Set-Content -Encoding UTF8 会写 BOM，别用它；
+#    本文件由编辑器直接保存即可（无 BOM）。
+
+tunnel: <Tunnel ID，形如 fd020451-5ab7-433f-bde8-146307cd1ab5>
+credentials-file: C:\Users\<你>\.cloudflared\<Tunnel ID>.json
+
+ingress:
+  # 1) 后端接口。/api/ 前缀原样转发（cloudflared 不剥离路径），后端正好期望它。
+  #
+  # ⚠️ path 是 Go 正则，不是通配符：
+  #    写 /api/* 是错的 —— 正则里 * 只作用于前一个 /，匹配不到 /api/courses。
+  #    正确写法是 ^/api/。
+  - hostname: learn.你的域名.com
+    path: ^/api/
+    service: http://127.0.0.1:8899
+    originRequest:
+      connectTimeout: 30s
+
+  # 2) 其余全部是前端静态资源；SPA 深链接由前端服务器的回退逻辑交给 index.html。
+  - hostname: learn.你的域名.com
+    service: http://127.0.0.1:5173
+    originRequest:
+      connectTimeout: 30s
+
+  # 3) 兜底规则，必须放在最后。
+  - service: http_status:404

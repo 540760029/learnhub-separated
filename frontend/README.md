@@ -27,19 +27,28 @@ npm start                            # → http://127.0.0.1:5173
 1. **网址参数** `?api=http://192.168.1.10:8899` —— 临时指向别的后端，会被记进 localStorage
    （适合用手机连你电脑上的服务来测）
 2. **localStorage** 里记住的 `lh_api_base`
-3. **`config.js` 里的 `apiBase`** —— 默认值，日常改这里
+3. **`config.js` 里的 `apiBase`** —— 默认值，按访问环境自动选：
 
 ```js
 // config.js
+const isLocal = ['localhost', '127.0.0.1', '::1'].includes(location.hostname);
 window.LEARNHUB_CONFIG = {
-  apiBase: 'http://127.0.0.1:8899',   // 结尾不要加斜杠
+  apiBase: isLocal ? 'http://127.0.0.1:8899' : '',   // 结尾不要加斜杠
 };
 ```
 
-想恢复到默认值：浏览器控制台执行 `localStorage.removeItem('lh_api_base')` 后刷新。
+| 访问方式 | apiBase | 请求实际发往 |
+|---|---|---|
+| 本机 `127.0.0.1:5173` | `http://127.0.0.1:8899` | 直连本机后端 |
+| 公网域名（走 Cloudflare 隧道 / Nginx） | `''`（空串＝同源） | 同域名的 `/api/*`，由隧道或 Nginx 分流到后端 |
 
-> 后端必须允许你这个来源跨源访问。后端默认 `LEARNHUB_CORS_ORIGIN=*`（放行全部）；
-> 上生产建议收窄成白名单，例如 `LEARNHUB_CORS_ORIGIN=https://learn.你的域名.com`。
+所以同一份前端代码，本机开发和走隧道上线都不用改配置。
+
+想恢复默认值：浏览器控制台执行 `localStorage.removeItem('lh_api_base')` 后刷新。
+
+> 直连后端（`apiBase` 非空）时才算跨源，后端默认 `LEARNHUB_CORS_ORIGIN=*` 放行全部；
+> 上生产建议收窄成白名单。
+> 走隧道/Nginx 时是同源，浏览器根本不触发跨源，CORS 用不到。
 
 ## 目录结构
 
@@ -102,6 +111,10 @@ server {
 }
 ```
 
-同源部署时把 `config.js` 的 `apiBase` 改成空字符串 `''`，请求就会走相对路径。
+同源部署时 `config.js` 的 `apiBase` 会自动取空串（非 localhost 环境），请求走相对路径 ——
+不用手改。若你的域名恰好是 localhost，或想强制同源，加网址参数 `?api=` 传空值即可。
+
+> 另一条同样同源、且不用买服务器的路子：Cloudflare Tunnel 路径分流。
+> 见仓库根目录 [README](../README.md) 的「Cloudflare Tunnel」一节。
 
 > ⚠️ 国内服务器绑域名必须备案，否则 80/443 会被拦。
