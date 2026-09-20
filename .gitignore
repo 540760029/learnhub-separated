@@ -6,6 +6,9 @@ node_modules/
 .env.local
 .env.test
 
+# 日志（隧道守护会写这里）
+tools/logs/
+
 # 编辑器 / 系统
 .vscode/
 .idea/

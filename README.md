@@ -348,6 +348,43 @@ cloudflared tunnel ingress rule https://learn.你的域名.com/app.js        # �
 密码、把 `LEARNHUB_SECRET` 换成随机值。同源部署下浏览器不会跨源，CORS 其实用不到，
 `LEARNHUB_CORS_ORIGIN` 保持默认即可。
 
+### 开机自启（Windows 计划任务）
+
+本机部署时用计划任务托管三个常驻进程，避免依赖某个终端窗口：
+
+| 任务名 | 作用 |
+|---|---|
+| `LearnHub-Backend` | 后端 node（8899） |
+| `LearnHub-Frontend` | 前端静态服务（5173） |
+| `LearnHub-Tunnel` | 隧道守护脚本（`tools\serve-tunnel.ps1`） |
+
+```powershell
+# 注册（普通用户权限即可）
+powershell -ExecutionPolicy Bypass -File tools\install-autostart.ps1
+
+# 立即启动 / 查看状态
+Start-ScheduledTask -TaskName LearnHub-Backend, LearnHub-Frontend, LearnHub-Tunnel
+Get-ScheduledTask -TaskName LearnHub-* | Select-Object TaskName, State
+
+# 卸载（不会删任何代码或配置）
+powershell -ExecutionPolicy Bypass -File tools\install-autostart.ps1 -Uninstall
+```
+
+任务配置：**登录时触发**、单次运行不限时长、**失败后每分钟自动重启**。
+
+> 隧道为什么不直接跑 `cloudflared` 而要套一层 `serve-tunnel.ps1`：
+> cloudflared 在本机会自行退出（日志末尾是 DNS resolver 超时，连通性预检报
+> `region2` 不可达、`hard_fail=true`），需要日志落盘 + 退出后自动重启。
+> 日志在 `tools\logs\`（已 gitignore）。
+>
+> 另外注意：**同一隧道 ID + 同一域名只能有一个回源目标**。如果还有别的方案
+> （比如旧版应用）也用同一个 tunnel ID 连 `learn.你的域名.com`，Cloudflare 会在
+> 两个 connector 之间做负载均衡，公网访问就会在新旧版本之间随机跳。
+> 两边必须用**不同的 tunnel ID 或不同主机名**。
+
+> ⚠️ 任务的触发条件是「当前用户登录时」，所以机器重启后需要有人登录一次服务才会起来。
+> 若要求未登录也运行，需改用 `-LogonType ServiceAccount`（需要管理员权限并保存密码）。
+
 ### 上线检查清单
 
 - [ ] `LEARNHUB_SECRET` 已设为随机值（且**已备份**：换了之后用户已存的 Key 解不开）
