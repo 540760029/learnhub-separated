@@ -1,0 +1,24 @@
+{
+  "name": "learnhub-backend",
+  "version": "3.0.0",
+  "private": true,
+  "description": "LearnHub 后端 · 本地 Node + MySQL（前后端分离，只提供 /api/*）",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node --env-file-if-exists=.env server.js",
+    "dev": "node --env-file-if-exists=.env --watch server.js",
+    "test": "node --env-file-if-exists=.env --test \"test/*.test.js\"",
+    "db:create": "node --env-file-if-exists=.env scripts/create-db.js",
+    "db:migrate": "node --env-file-if-exists=.env scripts/migrate-mysql.js",
+    "db:seed": "node --env-file-if-exists=.env scripts/seed.js",
+    "db:setup": "npm run db:create && npm run db:migrate && npm run db:seed",
+    "hash": "node scripts/hash-password.js"
+  },
+  "dependencies": {
+    "mysql2": "^3.11.0"
+  },
+  "engines": {
+    "node": ">=20.18.0"
+  }
+}

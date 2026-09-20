@@ -1,0 +1,16 @@
+{
+  "name": "learnhub-frontend",
+  "version": "3.0.0",
+  "private": true,
+  "description": "LearnHub 前端 · 零构建原生 HTML/CSS/JS，独立部署，跨源调用后端 /api",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "test": "node --test \"test/*.test.js\""
+  },
+  "engines": {
+    "node": ">=20.18.0"
+  }
+}
